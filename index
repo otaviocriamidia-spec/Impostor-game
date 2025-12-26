@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jogo do impostor da família Torres</title>
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    body { margin: 0; background:#0b1020; color:#e9ecf1; }
+    .wrap { max-width: 820px; margin: 0 auto; padding: 20px; }
+    h1 { margin: 8px 0 18px; font-size: 22px; }
+    .card { background:#121a33; border:1px solid #22305c; border-radius:16px; padding:16px; margin: 12px 0; }
+    label { display:block; font-size: 13px; opacity:.9; margin: 10px 0 6px; }
+    input, select {
+      width: 100%; box-sizing: border-box;
+      padding: 10px 12px; border-radius: 12px;
+      border: 1px solid #2a3a72; background:#0e1630; color:#e9ecf1;
+      outline: none;
+    }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .btns { display:flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    button {
+      padding: 10px 14px; border-radius: 12px; border: 1px solid #2a3a72;
+      background:#1a2a58; color:#e9ecf1; cursor:pointer; font-weight: 600;
+    }
+    button:hover { filter: brightness(1.08); }
+    button.primary { background:#2a5cff; border-color:#2a5cff; }
+    button.danger { background:#b42318; border-color:#b42318; }
+    .muted { opacity:.85; font-size: 13px; }
+    .big {
+      font-size: 32px; font-weight: 800; letter-spacing: .5px;
+      padding: 18px; text-align: center; border-radius: 16px;
+      background:#0e1630; border: 1px dashed #2a3a72;
+      user-select: none;
+    }
+    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px;
+      border: 1px solid #2a3a72; background:#0e1630; margin-left: 8px; }
+    .center { text-align:center; }
+    .hidden { display:none; }
+    .step { font-weight:700; }
+    .hr { height:1px; background:#22305c; margin: 14px 0; }
+    .footer { opacity:.7; font-size: 12px; margin-top: 16px; line-height: 1.35; }
+    /* Screen-reader only helper */
+    .sr-only {
+      position: absolute !important;
+      height: 1px; width: 1px;
+      overflow: hidden;
+      clip: rect(1px, 1px, 1px, 1px);
+      white-space: nowrap; /* added line */
+    }
+    /* Small keyboard hint */
+    .kbd-hint { margin-top: 8px; font-size: 12px; opacity:.85; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🎭 Jogo do impostor da família Torres <span class="pill">html</span></h1>
+
+    <div class="card">
+      <div class="step">1) Configurar</div>
+
+      <label for="preset">Categoria</label>
+      <select id="preset" aria-label="Categoria"></select>
+
+      <div class="row">
+        <div>
+          <label for="players">Jogadores</label>
+          <input id="players" type="number" min="3" value="6" aria-label="Quantidade de jogadores" />
+        </div>
+        <div>
+          <label for="impostors">Impostores</label>
+          <input id="impostors" type="number" min="1" value="1" aria-label="Quantidade de impostores" />
+        </div>
+      </div>
+
+      <div class="btns" role="group" aria-label="Controles de configuração">
+        <button class="primary" id="btnStart" aria-controls="dealCard">Iniciar sorteio</button>
+        <button id="btnNewWord" aria-controls="dealCard">Sortear outra palavra</button>
+        <button class="danger" id="btnReset">Resetar</button>
+      </div>
+
+      <div class="footer">✅ As palavras não ficam visíveis na tela (só a categoria aparece).</div>
+    </div>
+
+    <div class="card hidden" id="dealCard" aria-live="polite" aria-hidden="true">
+      <div class="step">2) Entregar cartas (um por vez)</div>
+      <div class="muted">Passe o celular para o próximo jogador. Toque em “Mostrar” e depois em “Esconder”.</div>
+      <div class="hr"></div>
+
+      <div class="center muted">
+        Jogador <b id="playerNow" aria-live="polite">1</b> de <b id="playerTotal" aria-live="polite">0</b>
+      </div>
+
+      <div class="big" id="revealBox" role="status" aria-live="off" aria-atomic="true" aria-hidden="true" tabindex="0">•••••</div>
+
+      <div class="kbd-hint muted">Atalhos: <strong>Espaço / Enter</strong> = Mostrar/Esconder · <strong>Seta →</strong> = Próximo</div>
+
+      <div class="btns center" style="justify-content:center;" role="group" aria-label="Controles de entrega">
+        <button class="primary" id="btnReveal" aria-label="Mostrar papel">Mostrar</button>
+        <button id="btnHide" class="hidden" aria-label="Esconder papel">Esconder</button>
+        <button id="btnNext" class="hidden" aria-label="Próximo jogador" >Próximo jogador</button>
+      </div>
+
+      <div class="hr"></div>
+      <div class="muted">
+        Categoria: <b id="catLabel">—</b>
+        <span class="pill" id="impostorCountLabel"></span>
+      </div>
+    </div>
+
+    <div class="card hidden" id="doneCard" aria-hidden="true">
+      <div class="step">3) Pronto!</div>
+      <div class="muted">Todos receberam. Agora começa a rodada de perguntas 🙂</div>
+      <div class="btns">
+        <button class="primary" id="btnPlayAgain">Sortear de novo</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // Categorias (listas internas, não exibidas na interface)
+  const catalog = {
+    "Frutas": [
+      "Banana","Maçã","Uva","Morango","Manga","Abacaxi","Melancia","Laranja","Pera","Kiwi",
+      "Mamão","Goiaba","Maracujá","Acerola","Caju","Jabuticaba","Pitanga","Graviola","Cupuaçu","Açaí",
+      "Carambola","Romã","Coco","Tangerina","Limão","Pêssego","Ameixa","Nectarina","Caqui","Figo",
+      "Jaca","Damasco","Amora","Framboesa","Mirtilo","Melão","Pitaya","Tamarindo","Noni","Pinha",
+      "Lichia","Rambutan","Physalis","Nêspera","Cereja","Pequi","Azeitona","Dendê","Uva-passa","Tamarillo"
+    ],
+    "Animais": [
+      "Cachorro","Gato","Leão","Elefante","Girafa","Tartaruga","Golfinho","Cavalo","Coelho","Coruja",
+      "Tigre","Urso","Lobo","Raposa","Macaco","Pinguim","Zebra","Rinoceronte","Hipopótamo","Canguru",
+      "Camelo","Jacaré","Crocodilo","Papagaio","Águia","Falcão","Tucano","Sapo","Rã","Cobra",
+      "Onça","Tamanduá","Capivara","Gambá","Lhama","Baleia","Tubarão","Polvo","Caranguejo","Lagosta",
+      "Arara","Bicho-preguiça","Pavão","Galo","Galinha","Ovelha","Cabra","Porco","Vaca","Búfalo"
+    ],
+    "Profissões": [
+      "Médico","Professor","Cozinheiro","Mecânico","Bombeiro","Piloto","Dentista","Engenheiro","Vendedor","Policial",
+      "Advogado","Juiz","Enfermeiro","Fisioterapeuta","Psicólogo","Arquiteto","Motorista","Programador","Designer","Fotógrafo",
+      "Jornalista","Barbeiro","Cabeleireiro","Padeiro","Confeiteiro","Garçom","Bartender","Atendente","Eletricista","Pedreiro",
+      "Carpinteiro","Agricultor","Veterinário","Farmacêutico","Biomédico","Contador","Secretário","Recepcionista","Chef","Cientista",
+      "Astronauta","Nutricionista","Fonoaudiólogo","Terapeuta ocupacional","Pescador","Soldado","Guia turístico","Bibliotecário","Pilotador de drone","Chef de cozinha"
+    ],
+    "Lugares": [
+      "Praia","Aeroporto","Hospital","Escola","Shopping","Igreja","Restaurante","Estádio","Cinema","Parque",
+      "Mercado","Padaria","Biblioteca","Museu","Delegacia","Posto de gasolina","Academia","Hotel","Rodoviária","Porto",
+      "Teatro","Zoológico","Aquário","Praça","Farmácia","Clínica","Universidade","Fazenda","Montanha","Cachoeira",
+      "Ilha","Floresta","Deserto","Vulcão","Castelo","Ponte","Túnel","Estação de trem","Feira","Banco",
+      "Correios","Cartório","Oficina","Salão de beleza","Parquinho","Campo","Ponto de ônibus","Lanchonete","Pizzaria","Conveniência"
+    ],
+    "Comidas": [
+      "Coxinha","Hambúrguer","Pizza","Sushi","Feijoada","Churrasco","Tapioca","Açaí","Lasanha","Churros",
+      "Pão de queijo","Pastel","Esfiha","Empada","Brigadeiro","Beijinho","Cuscuz","Vatapá","Moqueca","Strogonoff",
+      "Arroz carreteiro","Torta","Bolo","Pudim","Sorvete","Yakissoba","Risoto","Panqueca","Hot dog","Kibe",
+      "Omelete","Macarronada","Tacacá","Picanha","Frango assado","Ceviche","Nachos","Paçoca","Acarajé","Caldo verde",
+      "Baião de dois","Canjica","Curau","Quiche","Brownie","Pavê","Rocambole","Linguado","Costela","Sopa"
+    ],
+    "Objetos": [
+      "Chave","Relógio","Óculos","Celular","Controle remoto","Fone de ouvido","Garrafa","Caneta","Caderno","Mochila",
+      "Tesoura","Martelo","Parafuso","Lanterna","Carregador","Copo","Prato","Talher","Travesseiro","Cobertor",
+      "Ventilador","Televisão","Computador","Mouse","Teclado","Livro","Vassoura","Balde","Bicicleta","Capacete",
+      "Guarda-chuva","Toalha","Escova de dentes","Sabonete","Perfume","Carteira","Chapéu","Espelho","Cinto","Anel",
+      "Panela","Frigideira","Colher de pau","Faca","Garfo","Prendedor","Clip","Cadeira","Mesa","Abajur"
+    ]
+  };
+
+  const el = (id) => document.getElementById(id);
+
+  const presetSel = el("preset");
+  const playersInp = el("players");
+  const impostorsInp = el("impostors");
+
+  const dealCard = el("dealCard");
+  const doneCard = el("doneCard");
+
+  const playerNow = el("playerNow");
+  const playerTotal = el("playerTotal");
+  const revealBox = el("revealBox");
+
+  const btnStart = el("btnStart");
+  const btnNewWord = el("btnNewWord");
+  const btnReset = el("btnReset");
+
+  const btnReveal = el("btnReveal");
+  const btnHide = el("btnHide");
+  const btnNext = el("btnNext");
+  const btnPlayAgain = el("btnPlayAgain");
+
+  const catLabel = el("catLabel");
+  const impostorCountLabel = el("impostorCountLabel");
+
+  // Preenche categorias
+  Object.keys(catalog).forEach((name) => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    presetSel.appendChild(opt);
+  });
+
+  let state = {
+    started: false,
+    category: "",
+    roles: [],
+    current: 0,
+    revealed: false
+  };
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function resetUI() {
+    dealCard.classList.add("hidden");
+    dealCard.setAttribute("aria-hidden", "true");
+    doneCard.classList.add("hidden");
+    doneCard.setAttribute("aria-hidden", "true");
+    revealBox.textContent = "•••••";
+    setRevealAriaHidden(true);
+    btnReveal.classList.remove("hidden");
+    btnHide.classList.add("hidden");
+    btnNext.classList.add("hidden");
+    catLabel.textContent = "—";
+    impostorCountLabel.textContent = "";
+    // focus first interactive control
+    btnStart.focus();
+  }
+
+  function validateConfig(players, impostors, wordsLen) {
+    if (wordsLen < 3) return "Categoria com poucas palavras (mínimo 3).";
+    if (players < 3) return "Mínimo de 3 jogadores.";
+    if (impostors < 1) return "Mínimo de 1 impostor.";
+    if (impostors >= players) return "Impostores deve ser menor que jogadores.";
+    return null;
+  }
+
+  function pickWord(category) {
+    const words = catalog[category] || [];
+    return words[Math.floor(Math.random() * words.length)];
+  }
+
+  function setRevealAriaHidden(hidden) {
+    revealBox.setAttribute("aria-hidden", hidden ? "true" : "false");
+    // control aria-live manually: only announce when revealed
+    revealBox.setAttribute("aria-live", hidden ? "off" : "polite");
+  }
+
+  function startGame({reuseCategory=false} = {}) {
+    const category = reuseCategory ? state.category : presetSel.value;
+    const words = catalog[category] || [];
+
+    const players = Number(playersInp.value);
+    const impostors = Number(impostorsInp.value);
+
+    const err = validateConfig(players, impostors, words.length);
+    if (err) { alert(err); return; }
+
+    const chosenWord = pickWord(category);
+
+    const roles = Array(players).fill(chosenWord);
+    const idx = shuffle([...Array(players).keys()]).slice(0, impostors);
+    idx.forEach(i => roles[i] = "IMPOSTOR");
+
+    state = { started: true, category, roles, current: 0, revealed: false };
+
+    playerTotal.textContent = String(players);
+    playerNow.textContent = "1";
+
+    catLabel.textContent = category;
+    impostorCountLabel.textContent = `${impostors} impostor(es)`;
+
+    revealBox.textContent = "•••••";
+    setRevealAriaHidden(true);
+
+    dealCard.classList.remove("hidden");
+    dealCard.setAttribute("aria-hidden", "false");
+    doneCard.classList.add("hidden");
+    doneCard.setAttribute("aria-hidden", "true");
+
+    btnReveal.classList.remove("hidden");
+    btnHide.classList.add("hidden");
+    btnNext.classList.add("hidden");
+
+    // focus Reveal button for keyboard users
+    btnReveal.focus();
+  }
+
+  function reveal() {
+    if (!state.started) return;
+    state.revealed = true;
+    // put actual role text into the box and make it read by screen readers
+    revealBox.textContent = state.roles[state.current];
+    setRevealAriaHidden(false);
+
+    // switch buttons
+    btnReveal.classList.add("hidden");
+    btnHide.classList.remove("hidden");
+    btnNext.classList.add("hidden");
+
+    // focus Hide button so player can hide with keyboard
+    btnHide.focus();
+  }
+
+  function hide() {
+    state.revealed = false;
+    revealBox.textContent = "•••••";
+    setRevealAriaHidden(true);
+
+    // switch buttons
+    btnHide.classList.add("hidden");
+    btnNext.classList.remove("hidden");
+
+    // focus Next button so player can proceed with keyboard
+    btnNext.focus();
+  }
+
+  function nextPlayer() {
+    const players = state.roles.length;
+    if (state.current + 1 >= players) {
+      dealCard.classList.add("hidden");
+      dealCard.setAttribute("aria-hidden", "true");
+      doneCard.classList.remove("hidden");
+      doneCard.setAttribute("aria-hidden", "false");
+      btnPlayAgain.focus();
+      return;
+    }
+    state.current++;
+    playerNow.textContent = String(state.current + 1);
+    revealBox.textContent = "•••••";
+    setRevealAriaHidden(true);
+    btnNext.classList.add("hidden");
+    btnReveal.classList.remove("hidden");
+    // focus Reveal for next player
+    btnReveal.focus();
+  }
+
+  // Keyboard shortcuts:
+  // - Space / Enter: toggle Mostrar/Esconder (when dealCard visible)
+  // - ArrowRight: Próximo (when Next visible)
+  function onKeyDown(e) {
+    // ignore if modal or inputs are focused (so typing numbers still works)
+    const active = document.activeElement;
+    const isInput = active && (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.isContentEditable);
+    if (isInput) return;
+
+    // Only act when the dealCard is visible (we're in the delivery flow)
+    if (dealCard.classList.contains("hidden")) return;
+
+    if (e.code === "Space" || e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      if (!btnReveal.classList.contains("hidden")) {
+        btnReveal.click();
+      } else if (!btnHide.classList.contains("hidden")) {
+        btnHide.click();
+      } else if (!btnNext.classList.contains("hidden")) {
+        btnNext.click();
+      }
+    } else if (e.key === "ArrowRight") {
+      // only allow next if Next button is visible
+      if (!btnNext.classList.contains("hidden")) {
+        e.preventDefault();
+        btnNext.click();
+      }
+    }
+  }
+
+  // Event listeners
+  btnStart.addEventListener("click", () => startGame({reuseCategory:false}));
+  btnNewWord.addEventListener("click", () => startGame({reuseCategory:true}));
+  btnReveal.addEventListener("click", reveal);
+  btnHide.addEventListener("click", hide);
+  btnNext.addEventListener("click", nextPlayer);
+  btnPlayAgain.addEventListener("click", () => startGame({reuseCategory:true}));
+  btnReset.addEventListener("click", () => { state.started = false; state = {started:false, category:'', roles:[], current:0, revealed:false}; resetUI(); });
+
+  // attach keyboard handler on document
+  document.addEventListener("keydown", onKeyDown);
+
+  // initialize UI state
+  resetUI();
+</script>
+</body>
+</html>
